@@ -137,7 +137,7 @@ public enum Evals {
                 try fm.copyItem(atPath: swiftmoduleURL.path, toPath: "\(fm.currentDirectoryPath)/\(module).swiftmodule")
                 return module
             } catch {
-                print("Module '\(module)' was missing either a framework or swiftmodule; will not explicitly link.")
+                print("[Info] module '\(module)' was missing either a framework or swiftmodule; will not explicitly link.")
                 return nil
             }
         }
@@ -150,7 +150,7 @@ public enum Evals {
                 try fm.copyItem(atPath: dylibURL.path, toPath: "\(fm.currentDirectoryPath)/\(fileName)")
                 return module
             } catch {
-                print("Module '\(module)' was missing a dylib; will not explicitly link.")
+                print("[Info] module '\(module)' was missing a dylib; will not explicitly link.")
                 return nil
             }
         }
@@ -161,7 +161,7 @@ public enum Evals {
             .forEach {
                 do {
                     try fm.copyItem(atPath: $0.path, toPath: "\(fm.currentDirectoryPath)/\($0.lastPathComponent)")
-                } catch { print("Failed to copy swiftmodule at path \($0.path); compilation may fail.") }
+                } catch { print("[Warn] failed to copy swiftmodule at path \($0.path); compilation may fail.") }
             }
         linkingArguments = "-I . -L .".args + linkedLibraries.map { "lib\($0).dylib" }
 #endif
