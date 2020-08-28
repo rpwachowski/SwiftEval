@@ -1,10 +1,18 @@
 import Foundation
 
 public final class XcodeEnvironment: BuildEnvironment {
+
     public var configuration: String
+    
     public var buildDirectory: URL
+
     public var modulesDirectory: URL { buildDirectory }
+
     public var binaryDirectory: URL { buildDirectory }
+
+    public var packageFrameworksDirectory: URL {
+        buildDirectory.appendingPathComponent("PackageFrameworks")
+    }
     
     public init(executablePath: URL) throws {
         var _configuration: String!

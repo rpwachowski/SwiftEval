@@ -43,12 +43,12 @@ public enum Evals {
         
         let source = """
         \(importLines)
-        
-        extension SwiftEvalPrivates {
+
+        public extension SwiftEvalPrivates {
         \(d)@_dynamicReplacement(for: function0)
-        \(d)public var __function_\(name): (() -> Any)? {
+        \(d)var __function_\(name): (() -> Any)? {
         \(____d)func fn() -> \(returnType) {
-        \(________d)\(source)
+        \(________d)\(source.replacingOccurrences(of: "\n", with: "\n\(________d)"))
         \(____d)}
         \(____d)return fn
         \(d)}
@@ -58,7 +58,6 @@ public enum Evals {
         try compileAndLoad(name: name,
                            imports: imports,
                            source: source)
-        
         guard let fn = SwiftEvalPrivates.shared.function0 else {
             throw MessageError("load function failed")
         }
@@ -87,12 +86,12 @@ public enum Evals {
         
         let source = """
         \(importLines)
-        
+
         extension SwiftEvalPrivates {
         \(d)@_dynamicReplacement(for: function1)
         \(d)public var __function_\(name): ((Any) -> Any)? {
         \(____d)func fn(_ parameter1: \(parameter1Type)) -> \(returnType) {
-        \(________d)\(source)
+        \(________d)\(source.replacingOccurrences(of: "\n", with: "\n\(________d)"))
         \(____d)}
         \(____d)return { (parameter1: Any) -> Any in
         \(________d)fn(parameter1 as! \(parameter1Type))
@@ -120,45 +119,67 @@ public enum Evals {
         source: String) throws
     {
         let env = try BuildEnvironments.detect()
-
         let tempDir = Utils.createTemporaryDirectory()
         try fm.createDirectory(at: tempDir, withIntermediateDirectories: true)
         try source.write(to: tempDir.appendingPathComponent("code.swift"),
                          atomically: true, encoding: .utf8)
-        
         try fm.changeCurrentDirectory(at: tempDir)
-        
-        let modulesDir = env.modulesDirectory
-//        print(modulesDir.path)
-        
-        var args: [String] = [
-            "/usr/bin/swiftc",
-            "-emit-library",
-            "-module-name", name,
-            "-I", modulesDir.path
-        ]
-        
-        let libFiles = imports.map { (module) in
-            env.binaryDirectory
-                .appendingPathComponent("lib\(module).dylib")
+
+        let linkingArguments: [String]
+#if DEBUG
+        // Allow copying frameworks to fail. If a dynamic library includes its own dependencies,
+        // importing them will work but there will be no associated for those dependencies.
+        let linkedFrameworks: [String] = imports.compactMap { module in
+            let frameworkURL = env.packageFrameworksDirectory.appendingPathComponent("\(module).framework")
+            let swiftmoduleURL = env.modulesDirectory.appendingPathComponent("\(module).swiftmodule")
+            do {
+                try fm.copyItem(atPath: frameworkURL.path, toPath: "\(fm.currentDirectoryPath)/\(module).framework")
+                try fm.copyItem(atPath: swiftmoduleURL.path, toPath: "\(fm.currentDirectoryPath)/\(module).swiftmodule")
+                return module
+            } catch {
+                print("Module '\(module)' was missing either a framework or swiftmodule; will not explicitly link.")
+                return nil
+            }
         }
-        
-        args += libFiles.map { $0.path }
-        
-        args += ["code.swift"]
-        
-//        print(args)
-        
+        linkingArguments = "-I . -L . -F .".args + Array(linkedFrameworks.map { ["-framework", "\($0)"] }.joined())
+#else
+        let linkedLibraries: [String] = imports.compactMap { module in
+            let fileName = "lib\(module).dylib"
+            let dylibURL = env.modulesDirectory.appendingPathComponent(fileName)
+            do {
+                try fm.copyItem(atPath: dylibURL.path, toPath: "\(fm.currentDirectoryPath)/\(fileName)")
+                return module
+            } catch {
+                print("Module '\(module)' was missing a dylib; will not explicitly link.")
+                return nil
+            }
+        }
+
+        try fm.contentsOfDirectory(atPath: env.modulesDirectory.path)
+            .filter { $0.hasSuffix("swiftmodule") }
+            .map(env.modulesDirectory.appendingPathComponent)
+            .forEach {
+                do {
+                    try fm.copyItem(atPath: $0.path, toPath: "\(fm.currentDirectoryPath)/\($0.lastPathComponent)")
+                } catch { print("Failed to copy swiftmodule at path \($0.path); compilation may fail.") }
+            }
+        linkingArguments = "-I . -L .".args + linkedLibraries.map { "lib\($0).dylib" }
+#endif
+
+        let args = "/usr/bin/swiftc -emit-library -module-name \(name) code.swift".args + linkingArguments
         let ret = Commands.run(args)
-        guard ret.statusCode == EXIT_SUCCESS else {
-            throw Commands.Error(ret.standardError)
-        }
-        
+        guard ret.statusCode == EXIT_SUCCESS else { throw Commands.Error(ret.standardError) }
         let libPath = tempDir.appendingPathComponent("lib\(name).dylib")
-        
-        guard let _ = dlopen(libPath.path, RTLD_NOW) else {
+        guard dlopen(libPath.path, RTLD_NOW) != nil else {
             throw MessageError("dlopen failed: \(libPath.path)")
         }
     }
 }
 
+private extension String {
+
+    var args: [String] {
+        split(separator: " ").map(String.init)
+    }
+
+}

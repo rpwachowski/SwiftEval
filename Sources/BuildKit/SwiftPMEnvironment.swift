@@ -1,10 +1,16 @@
 import Foundation
 
 public final class SwiftPMEnvironment: BuildEnvironment {
+
     public var configuration: String
+    
     public var buildDirectory: URL
+
     public var modulesDirectory: URL { buildDirectory }
+
     public var binaryDirectory: URL { buildDirectory }
+
+    public var packageFrameworksDirectory: URL { fatalError("Not yet implemented.") }
     
     public init(executablePath: URL) throws {
         var _configuration: String?

@@ -8,7 +8,7 @@ public enum BuildEnvironments {
         var dir = execPath.deletingLastPathComponent()
         while true {
             if dir.path == "/" {
-                throw MessageError("search build directory failed")
+                return CustomPathEnvironment(executablePath: execPath)
             }
             
             if dir.lastPathComponent == ".build" {
@@ -24,3 +24,18 @@ public enum BuildEnvironments {
     }
 }
 
+public final class CustomPathEnvironment: BuildEnvironment {
+
+    public let configuration: String
+    private let executablePath: URL
+
+    public var modulesDirectory: URL { executablePath.deletingLastPathComponent() }
+    public var binaryDirectory: URL { executablePath.deletingLastPathComponent() }
+    public var packageFrameworksDirectory: URL { executablePath.deletingLastPathComponent() }
+
+    init(executablePath: URL) {
+        configuration = "release"
+        self.executablePath = executablePath
+    }
+
+}
