@@ -120,6 +120,7 @@ public enum Evals {
     {
         let env = try BuildEnvironments.detect()
         let tempDir = Utils.createTemporaryDirectory()
+        let pwd = fm.currentDirectoryPath
         try fm.createDirectory(at: tempDir, withIntermediateDirectories: true)
         try source.write(to: tempDir.appendingPathComponent("code.swift"),
                          atomically: true, encoding: .utf8)
@@ -173,6 +174,7 @@ public enum Evals {
         guard dlopen(libPath.path, RTLD_NOW) != nil else {
             throw MessageError("dlopen failed: \(libPath.path)")
         }
+        fm.changeCurrentDirectoryPath(pwd)
     }
 }
 
